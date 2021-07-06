@@ -4,7 +4,7 @@ module Migration = {
 
     @send external deleteIndex: (t, string) => unit = "deleteIndex"
 
-    @send external createIndex: (t, string, array<string>) => unit = "createIndex"
+    @send external createIndex: (t, string, string) => unit = "createIndex"
     let createUniqueIndex: (t, string, array<string>) => unit = %raw(`
       function (store, name, attrPath) {
         store.createIndex(name, attrPath, {unique: true});

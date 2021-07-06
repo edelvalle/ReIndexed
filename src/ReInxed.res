@@ -40,14 +40,17 @@ module MakeDatabase = (Database: DatabaseT) => {
     type t = Model.t
     type attribute = Model.attribute
     type value = string
-    type bound = Inclusive(value) | Exclusive(value)
-    type expression =
-      | LessThan(attribute, value)
-      | LessThanOrEqual(attribute, value)
-      | GratherThan(attribute, value)
-      | GratherThanOrEqual(attribute, value)
-      | Is(attribute, value)
-      | Between(attribute, bound, bound)
+    type bound = [#incl(value) | #excl(value)]
+    type rec expression = [
+      | #is(attribute, value)
+      | #lt(attribute, value)
+      | #lte(attribute, value)
+      | #gt(attribute, value)
+      | #gte(attribute, value)
+      | #between(attribute, bound, bound)
+      | #And(expression, expression)
+      | #Or(expression, expression)
+    ]
 
     type action = [
       | #get(value)
@@ -64,6 +67,7 @@ module MakeDatabase = (Database: DatabaseT) => {
     let getMany = (ids): actions => ids->Array.map(id => #get(id))
     let delete = (id): actions => [#delete(id)]
     let deleteMany = (ids): actions => ids->Array.map(id => #delete(id))
+    let query = (expression): actions => [#query(expression)]
   }
 
   module type QueryI = {
@@ -77,6 +81,7 @@ module MakeDatabase = (Database: DatabaseT) => {
     type request = Query.request
     type response = Query.response
     let make = Query.make
+    external value: 'a => string = "%identity"
     let do = (request: request): Js.Promise.t<response> => {
       switch connection.db {
       | Some(db) => db->IDB.Database.transaction(request)

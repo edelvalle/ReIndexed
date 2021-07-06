@@ -1,13 +1,16 @@
 
+# ReIndexed
 
-# Build
-```
-npm run build
-```
+Kind of an IndexedDB ORM written in ReScript with no dependencies.
 
-# Watch
+## POC
 
-```
-npm run watch
-```
+The `index.re` file contains an example of usage.
 
+# Install
+
+`make install`
+
+# Development
+
+Open two shells and run in each one `make run` and `make rescript`

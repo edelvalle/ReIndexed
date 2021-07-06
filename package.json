@@ -7,8 +7,5 @@
     "esbuild": "^0.12.9",
     "rescript": "^9.1.4"
   },
-  "dependencies": {
-    "bs-webapi": "^0.19.1",
-    "idb": "^6.1.2"
-  }
+  "dependencies": {}
 }

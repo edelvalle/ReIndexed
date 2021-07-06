@@ -1,6 +1,4 @@
-open Belt
-
-open ReInxeded
+open ReInxed
 
 module DatabaseDef = {
   type table = [#vessels]
@@ -8,10 +6,9 @@ module DatabaseDef = {
     open IDB.Migration
     [
       (db, _transaction): unit => {
-        db->Database.createObjectStore("vessels")->Store.createIndex("name", ["name"])
-      },
-      (_db, transaction): unit => {
-        transaction->Transaction.objectStore("vessels")->Store.deleteIndex("name")
+        let store = db->Database.createObjectStore("vessels")
+        store->Store.createIndex("name", "name")
+        store->Store.createIndex("age", "age")
       },
     ]
   }
@@ -36,10 +33,19 @@ module QueryDef = {
 module Query = Database.MakeQuery(QueryDef)
 
 let _ = Database.connect("shipping")->Js.Promise.then_(_db => {
-  let request: Query.request = {
-    vessels: Vessel.save([{id: "totoro", name: "MS tororo", age: 19}])->Array.concat(
-      Vessel.deleteMany(["vid"]),
-    ),
-  }
-  request->Query.do->Js.Promise.then_(response => {Js.Promise.resolve(Js.log(response))}, _)
+  let vessels: array<Vessel.t> = [
+    {id: "a", name: "MS Anag", age: 10},
+    {id: "b", name: "MS Anag", age: 15},
+    {id: "c", name: "Mc Donald", age: 20},
+    {id: "x", name: "Mc Donald", age: 15},
+  ]
+  Query.do({vessels: Vessel.save(vessels)})->Js.Promise.then_(_response => {
+    let _ = Query.do({
+      vessels: Vessel.query(#Or(#is(#name, "MS Anag"), #lte(#age, Query.value(15)))),
+    })->Js.Promise.then_(response => {
+      Js.log(response)
+      Js.Promise.resolve()
+    }, _)
+    Js.Promise.resolve()
+  }, _)
 }, _)
