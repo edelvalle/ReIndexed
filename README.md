@@ -1,13 +1,18 @@
-
 # ReIndexed
 
-Kind of an IndexedDB ORM written in ReScript with no dependencies.
+Kind of an IndexedDB ORM written in ReScript with no runtime dependencies.
 
 ## POC
 
-The `index.re` file contains an example of usage.
+The file `src/examples/index.re` contains an example of usage.
 
 # Install
+
+## Requirements
+
+- yarn
+
+## Installation
 
 `make install`
 
