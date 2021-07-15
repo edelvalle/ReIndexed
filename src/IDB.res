@@ -79,5 +79,5 @@ module Database = {
     }
   `)
 
-  @module("./transaction") external transaction: 'a = "default"
+  @module("../../../src/transaction") external transaction: 'a = "default"
 }
