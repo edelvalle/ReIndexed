@@ -167,7 +167,7 @@ Database.connect("test_database")->then(_db => {
     let checkResultantKeys = (x, query, keys) => {
       let done = x->async
       {
-        vessels: [#query(query)],
+        vessels: [query],
       }
       ->Query.do
       ->then((results: Query.response) => {
@@ -181,106 +181,119 @@ Database.connect("test_database")->then(_db => {
 
     module_("Test term on primary key", _ => {
       test("Can get pricese primary key", x => {
-        x->checkResultantKeys(#is(#id, "c"), ["c"])
+        x->checkResultantKeys(#query(#is(#id, "c")), ["c"])
       })
 
       test("Can get less than primary key", x => {
-        x->checkResultantKeys(#lt(#id, "c"), ["a", "b"])
+        x->checkResultantKeys(#query(#lt(#id, "c")), ["a", "b"])
       })
 
       test("Can get less or equal than primary key", x => {
-        x->checkResultantKeys(#lte(#id, "c"), ["a", "b", "c"])
+        x->checkResultantKeys(#query(#lte(#id, "c")), ["a", "b", "c"])
       })
 
       test("Can get grater than primary key", x => {
-        x->checkResultantKeys(#gt(#id, "c"), ["d", "x"])
+        x->checkResultantKeys(#query(#gt(#id, "c")), ["d", "x"])
       })
 
       test("Can get grater or equal than primary key", x => {
-        x->checkResultantKeys(#gte(#id, "c"), ["c", "d", "x"])
+        x->checkResultantKeys(#query(#gte(#id, "c")), ["c", "d", "x"])
       })
 
       test("Can get a range with exclusive of keys", x => {
-        x->checkResultantKeys(#between(#id, #excl("b"), #excl("d")), ["c"])
+        x->checkResultantKeys(#query(#between(#id, #excl("b"), #excl("d"))), ["c"])
       })
 
       test("Can get a range left exclusive and right inclusive keys", x => {
-        x->checkResultantKeys(#between(#id, #excl("b"), #incl("d")), ["c", "d"])
+        x->checkResultantKeys(#query(#between(#id, #excl("b"), #incl("d"))), ["c", "d"])
       })
 
       test("Can get a range left inclusive and right exclusive keys", x => {
-        x->checkResultantKeys(#between(#id, #incl("b"), #excl("d")), ["b", "c"])
+        x->checkResultantKeys(#query(#between(#id, #incl("b"), #excl("d"))), ["b", "c"])
       })
 
       test("Can get a range of incluisive keys", x => {
-        x->checkResultantKeys(#between(#id, #incl("b"), #incl("d")), ["b", "c", "d"])
+        x->checkResultantKeys(#query(#between(#id, #incl("b"), #incl("d"))), ["b", "c", "d"])
       })
     })
 
     module_("Test term on an index", _ => {
       test("Can get pricese primary key", x => {
-        x->checkResultantKeys(#is(#age, Query.value(15)), ["b", "x"])
+        x->checkResultantKeys(#query(#is(#age, Query.value(15))), ["b", "x"])
       })
 
       test("Can get less than primary key", x => {
-        x->checkResultantKeys(#lt(#age, Query.value(15)), ["c", "a"])
+        x->checkResultantKeys(#query(#lt(#age, Query.value(15))), ["c", "a"])
       })
 
       test("Can get less or equal than primary key", x => {
-        x->checkResultantKeys(#lte(#age, Query.value(15)), ["c", "a", "b", "x"])
+        x->checkResultantKeys(#query(#lte(#age, Query.value(15))), ["c", "a", "b", "x"])
       })
 
       test("Can get grater than primary key", x => {
-        x->checkResultantKeys(#gt(#age, Query.value(15)), ["d"])
+        x->checkResultantKeys(#query(#gt(#age, Query.value(15))), ["d"])
       })
 
       test("Can get grater or equal than primary key", x => {
-        x->checkResultantKeys(#gte(#age, Query.value(15)), ["b", "x", "d"])
+        x->checkResultantKeys(#query(#gte(#age, Query.value(15))), ["b", "x", "d"])
       })
 
       test("Can get a range with exclusive of keys", x => {
         x->checkResultantKeys(
-          #between(#age, #excl(Query.value(5)), #excl(Query.value(20))),
+          #query(#between(#age, #excl(Query.value(5)), #excl(Query.value(20)))),
           ["a", "b", "x"],
         )
       })
 
       test("Can get a range left exclusive and right inclusive keys", x => {
         x->checkResultantKeys(
-          #between(#age, #excl(Query.value(5)), #incl(Query.value(20))),
+          #query(#between(#age, #excl(Query.value(5)), #incl(Query.value(20)))),
           ["a", "b", "x", "d"],
         )
       })
 
       test("Can get a range left inclusive and right exclusive keys", x => {
         x->checkResultantKeys(
-          #between(#age, #incl(Query.value(5)), #excl(Query.value(20))),
+          #query(#between(#age, #incl(Query.value(5)), #excl(Query.value(20)))),
           ["c", "a", "b", "x"],
         )
       })
 
       test("Can get a range of incluisive keys", x => {
         x->checkResultantKeys(
-          #between(#age, #incl(Query.value(5)), #incl(Query.value(20))),
+          #query(#between(#age, #incl(Query.value(5)), #incl(Query.value(20)))),
           ["c", "a", "b", "x", "d"],
         )
       })
     })
 
+    module_("Test filtering", _ => {
+      test("Filtering over all items", x => {
+        x->checkResultantKeys(#filter(#all, vessel => vessel.age == 15), ["b", "x"])
+      })
+
+      test("Filtering over previous selector items", x => {
+        x->checkResultantKeys(#filter(#is(#name, "MS Anag"), vessel => vessel.age == 15), ["b"])
+      })
+    })
+
     module_("AND logic operator", _ => {
       test("Two queries over the same value result in empty", x => {
-        x->checkResultantKeys(#And(#is(#name, "MS Anag"), #is(#name, "MS Donald")), [])
+        x->checkResultantKeys(#query(#And(#is(#name, "MS Anag"), #is(#name, "MS Donald"))), [])
       })
 
       test("Two where one reduces the other one", x => {
-        x->checkResultantKeys(#And(#is(#name, "MS Anag"), #is(#age, Query.value(15))), ["b"])
+        x->checkResultantKeys(
+          #query(#And(#is(#name, "MS Anag"), #is(#age, Query.value(15)))),
+          ["b"],
+        )
       })
     })
 
     module_("OR logic operator", _ => {
       test("Two queries on oposite directions exclude the center", x => {
         x->checkResultantKeys(
-          #Or(#lt(#age, Query.value(15)), #gt(#age, Query.value(15))),
+          #query(#Or(#lt(#age, Query.value(15)), #gt(#age, Query.value(15)))),
           ["d", "c", "a"],
         )
       })

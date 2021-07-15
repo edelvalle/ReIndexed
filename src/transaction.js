@@ -44,6 +44,14 @@ function transaction(db, requests) {
                     case "clear":
                         store.clear();
                         break;
+                    case "filter":
+                        let [expression, predicate] = VAL;
+                        query(
+                            store,
+                            expression,
+                            (results) => { response[store.name].push(...results) },
+                            predicate
+                        )
                     case "query":
                         query(store, VAL, (results) => {
                             response[store.name].push(...results)
@@ -104,25 +112,27 @@ const simpleQueries = new Set([
  * Run complicated queries inside the a transaction
  * @param store {IDBObjectStore}
  * @param callback {(items: Array) => void}
+ * @param predicate {(item) => boolean}
 */
 
-function query(store, expression, callback) {
+function query(store, expression, callback, predicate) {
     let { NAME, VAL } = expression;
     if (typeof expression === "string") {
         NAME = expression;
         VAL = [];
     }
+    predicate = predicate ? predicate : (_) => true
+
     if (simpleQueries.has(NAME)) {
         let results = []
-        let gather = (cursor) => {
-            if (cursor) {
-                results.push(cursor.value);
-                cursor.continue();
+        let gather = (item) => {
+            if (!isUndefined(item)) {
+                results.push(item);
             } else {
-                callback(results);
+                callback(results)
             }
         }
-        return simpleQuery(store, { NAME, VAL }, gather);
+        simpleQuery(store, { NAME, VAL }, gather, predicate);
     } else if (NAME === "And") {
         let [left, right] = VAL
         let resultCounter = {};
@@ -144,8 +154,8 @@ function query(store, expression, callback) {
                 callback(finalResults);
             }
         };
-        query(store, left, gather);
-        query(store, right, gather);
+        query(store, left, gather, predicate);
+        query(store, right, gather, predicate);
     } else if (NAME === "Or") {
         let [left, right] = VAL
         let results = {}
@@ -157,20 +167,18 @@ function query(store, expression, callback) {
                 callback(Object.values(results));
             }
         };
-        query(store, left, gather);
-        query(store, right, gather);
+        query(store, left, gather, predicate);
+        query(store, right, gather, predicate);
     }
 }
 
 /**
  * Runs the low level queries over an index
  * @param store {IDBObjectStore}
- * @param callback {(cursor: IDBCursor) => void}
 */
 
-function simpleQuery(store, { NAME, VAL }, callback) {
+function simpleQuery(store, { NAME, VAL }, gather, predicate) {
     let [attribute, ...values] = VAL;
-
     let range = (() => {
         switch (NAME) {
             case "all":
@@ -196,10 +204,18 @@ function simpleQuery(store, { NAME, VAL }, callback) {
 
         }
     })();
+
     openCursor(store, attribute, range).onsuccess = (event) => {
         let cursor = event.target.result;
-        callback(cursor);
-    }
+        if (cursor) {
+            if (predicate(cursor.value)) {
+                gather(cursor.value);
+            }
+            cursor.continue();
+        } else {
+            gather();
+        }
+    };
 }
 
 /**

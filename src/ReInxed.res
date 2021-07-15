@@ -57,6 +57,7 @@ module MakeDatabase = (Database: DatabaseT) => {
       | #get(value)
       | #delete(value)
       | #save(t)
+      | #filter(expression, t => bool)
       | #query(expression)
       | #updateWhen(expression, t => option<t>)
       | #deleteWhen(expression)
