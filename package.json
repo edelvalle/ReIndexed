@@ -1,11 +1,13 @@
 {
-  "name": "ReIndexed",
+  "name": "reindexed",
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
   "devDependencies": {
     "esbuild": "^0.12.9",
-    "rescript": "^9.1.4"
+    "qunit": "^2.16.0",
+    "rescript": "^9.1.4",
+    "rescript-fast-check": "^1.0.4"
   },
   "dependencies": {}
 }

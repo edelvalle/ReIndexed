@@ -32,22 +32,23 @@ module MakeDatabase = (Database: DatabaseT) => {
 
   module type ModelT = {
     type t
-    type attribute
+    type index
     let table: Database.table
   }
 
   module MakeModel = (Model: ModelT) => {
     type t = Model.t
-    type attribute = Model.attribute
+    type index = Model.index
     type value = string
     type bound = [#incl(value) | #excl(value)]
     type rec expression = [
-      | #is(attribute, value)
-      | #lt(attribute, value)
-      | #lte(attribute, value)
-      | #gt(attribute, value)
-      | #gte(attribute, value)
-      | #between(attribute, bound, bound)
+      | #all
+      | #is(index, value)
+      | #lt(index, value)
+      | #lte(index, value)
+      | #gt(index, value)
+      | #gte(index, value)
+      | #between(index, bound, bound)
       | #And(expression, expression)
       | #Or(expression, expression)
     ]
@@ -57,17 +58,11 @@ module MakeDatabase = (Database: DatabaseT) => {
       | #delete(value)
       | #save(t)
       | #query(expression)
-      | #updateQuery(expression, t => t)
-      | #deleteQuery(expression)
+      | #updateWhen(expression, t => option<t>)
+      | #deleteWhen(expression)
+      | #clear
     ]
     type actions = array<action>
-
-    let save = (instances: array<t>): actions => instances->Array.map(x => #save(x))
-    let get = (id): actions => [#get(id)]
-    let getMany = (ids): actions => ids->Array.map(id => #get(id))
-    let delete = (id): actions => [#delete(id)]
-    let deleteMany = (ids): actions => ids->Array.map(id => #delete(id))
-    let query = (expression): actions => [#query(expression)]
   }
 
   module type QueryI = {

@@ -2,12 +2,68 @@
 # yarn lockfile v1
 
 
+commander@7.1.0:
+  version "7.1.0"
+  resolved "https://registry.yarnpkg.com/commander/-/commander-7.1.0.tgz#f2eaecf131f10e36e07d894698226e36ae0eb5ff"
+  integrity sha512-pRxBna3MJe6HKnBGsDyMv8ETbptw3axEdYHoqNh7gu5oDcew8fs0xnivZGm06Ogk8zGAJ9VX+OPEr2GXEQK4dg==
+
 esbuild@^0.12.9:
   version "0.12.14"
   resolved "https://registry.yarnpkg.com/esbuild/-/esbuild-0.12.14.tgz#43157dbd0b36d939247d4eb4909a4886ac40f82e"
   integrity sha512-z8p+6FGiplR7a3pPonXREbm+8IeXjBGvDpVidZmGB/AJMsJSfGCU+n7KOMCazA9AwvagadRWBhiKorC0w9WJvw==
 
+fast-check@^2.17.0:
+  version "2.17.0"
+  resolved "https://registry.yarnpkg.com/fast-check/-/fast-check-2.17.0.tgz#9b9637684332be386219a5f73a4799874da7461c"
+  integrity sha512-fNNKkxNEJP+27QMcEzF6nbpOYoSZIS0p+TyB+xh/jXqRBxRhLkiZSREly4ruyV8uJi7nwH1YWAhi7OOK5TubRw==
+  dependencies:
+    pure-rand "^5.0.0"
+
+globalyzer@0.1.0:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/globalyzer/-/globalyzer-0.1.0.tgz#cb76da79555669a1519d5a8edf093afaa0bf1465"
+  integrity sha512-40oNTM9UfG6aBmuKxk/giHn5nQ8RVz/SS4Ir6zgzOv9/qC3kKZ9v4etGTcJbEl/NyVQH7FGU7d+X1egr57Md2Q==
+
+globrex@^0.1.2:
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/globrex/-/globrex-0.1.2.tgz#dd5d9ec826232730cd6793a5e33a9302985e6098"
+  integrity sha512-uHJgbwAMwNFf5mLst7IWLNg14x1CkeqglJb/K3doi4dw6q2IvAAmM/Y81kevy83wP+Sst+nutFTYOGg3d1lsxg==
+
+node-watch@0.7.1:
+  version "0.7.1"
+  resolved "https://registry.yarnpkg.com/node-watch/-/node-watch-0.7.1.tgz#0caaa6a6833b0d533487f953c52a6c787769ba7c"
+  integrity sha512-UWblPYuZYrkCQCW5PxAwYSxaELNBLUckrTBBk8xr1/bUgyOkYYTsUcV4e3ytcazFEOyiRyiUrsG37pu6I0I05g==
+
+pure-rand@^5.0.0:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/pure-rand/-/pure-rand-5.0.0.tgz#87f5bdabeadbd8904e316913a5c0b8caac517b37"
+  integrity sha512-lD2/y78q+7HqBx2SaT6OT4UcwtvXNRfEpzYEzl0EQ+9gZq2Qi3fa0HDnYPeqQwhlHJFBUhT7AO3mLU3+8bynHA==
+
+qunit@^2.16.0:
+  version "2.16.0"
+  resolved "https://registry.yarnpkg.com/qunit/-/qunit-2.16.0.tgz#b8ed63d512e5d4eaada5afc0c6c9e8b844181ba1"
+  integrity sha512-88x9t+rRMbB6IrCIUZvYU4pJy7NiBEv7SX8jD4LZAsIj+dV+kwGnFStOmPNvqa6HM96VZMD8CIIFKH2+3qvluA==
+  dependencies:
+    commander "7.1.0"
+    node-watch "0.7.1"
+    tiny-glob "0.2.8"
+
+rescript-fast-check@^1.0.4:
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/rescript-fast-check/-/rescript-fast-check-1.0.4.tgz#b19ac26a5752701209113e508ccc47dbab0686bb"
+  integrity sha512-ui7AYMsSfGp/P4UFiVjIv97Eqvsy5UzzNOrzWDQNCY9mzWCbWvPLwwMY3xqufQOrXa2gQ7JoxMt7uVM0rBzbmA==
+  dependencies:
+    fast-check "^2.17.0"
+
 rescript@^9.1.4:
   version "9.1.4"
   resolved "https://registry.yarnpkg.com/rescript/-/rescript-9.1.4.tgz#1eb126f98d6c16942c0bf0df67c050198e580515"
   integrity sha512-aXANK4IqecJzdnDpJUsU6pxMViCR5ogAxzuqS0mOr8TloMnzAjJFu63fjD6LCkWrKAhlMkFFzQvVQYaAaVkFXw==
+
+tiny-glob@0.2.8:
+  version "0.2.8"
+  resolved "https://registry.yarnpkg.com/tiny-glob/-/tiny-glob-0.2.8.tgz#b2792c396cc62db891ffa161fe8b33e76123e531"
+  integrity sha512-vkQP7qOslq63XRX9kMswlby99kyO5OvKptw7AMwBVMjXEI7Tb61eoI5DydyEMOseyGS5anDN1VPoVxEvH01q8w==
+  dependencies:
+    globalyzer "0.1.0"
+    globrex "^0.1.2"
