@@ -1,11 +1,13 @@
 {
-  "name": "ReIndexed",
-  "version": "1.0.0",
+  "name": "@kaiko/reindexed",
+  "version": "1.0.0-alpha",
   "main": "index.js",
   "license": "MIT",
   "devDependencies": {
     "esbuild": "^0.12.9",
     "rescript": "^9.1.4"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "description": "Kind of an IndexedDB ORM written in ReScript with no runtime dependencies.",
+  "author": "Kaiko Systems GmbH"
 }
