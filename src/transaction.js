@@ -9,12 +9,19 @@ function transaction(db, requests) {
     Object.keys(requests).map((storeName) => response[storeName] = []);
     let storeCommands = Object.entries(requests).map((storeCommand) => {
         let [storeName, commands] = storeCommand;
+
+        // transfer plain commands like #all and #clear into the shape of the
+        // rest of commands with arguments
+        commands = commands.map((command) => {
+            return typeof command === "string" ? { NAME: command } : command
+        })
         return { storeName, commands }
     });
+
     return new Promise((resolve) => {
         let transaction = db.transaction(
             getTransactionStores(storeCommands),
-            getTransactionMode(requests)
+            getTransactionMode(storeCommands)
         );
         transaction.oncomplete = () => resolve(response);
         storeCommands.forEach(({ storeName, commands }) => {
@@ -34,16 +41,47 @@ function transaction(db, requests) {
                     case "delete":
                         store.delete(VAL);
                         break;
+                    case "clear":
+                        store.clear();
+                        break;
+                    case "filter":
+                        let [expression, predicate] = VAL;
+                        query(
+                            store,
+                            expression,
+                            (results) => { response[store.name].push(...results) },
+                            predicate
+                        )
                     case "query":
                         query(store, VAL, (results) => {
                             response[store.name].push(...results)
                         });
                         break;
+                    case "updateWhen": {
+                        let [expression, transformation] = VAL;
+                        query(store, expression, (results) =>
+                            results
+                                .map(transformation)
+                                .filter((item) => !isUndefined(item))
+                                .forEach((item) => store.put(item))
+                        );
+                        break;
+                    }
+                    case "deleteWhen": {
+                        query(store, VAL, (results) => {
+                            results.forEach(({ id }) => store.delete(id));
+                        });
+                        break;
+                    }
+                    default:
+                        throw Error(`I don't know this command ${NAME}`)
                 }
             });
         });
     });
 }
+
+
 
 function getTransactionStores(storeCommands) {
     return storeCommands
@@ -51,17 +89,17 @@ function getTransactionStores(storeCommands) {
         .map(({ storeName }) => storeName);
 }
 
-const transactionWriteOps = new Set(["save", "delete", "updateQuery", "deleteQuery"]);
+const transactionWriteOps = new Set(["save", "delete", "updateWhen", "deleteWhen", "clear"]);
 
-function getTransactionMode(requests) {
-    const isWriteTransaction = Object
-        .values(requests)
-        .some((commands) => commands.some(({ NAME }) => transactionWriteOps.has(NAME)));
+function getTransactionMode(storeCommand) {
+    const isWriteTransaction = storeCommand
+        .some(({ commands }) => commands.some(({ NAME }) => transactionWriteOps.has(NAME)));
     return isWriteTransaction ? "readwrite" : "readonly";
 }
 
 
 const simpleQueries = new Set([
+    "all",
     "is",
     "lt",
     "lte",
@@ -74,20 +112,27 @@ const simpleQueries = new Set([
  * Run complicated queries inside the a transaction
  * @param store {IDBObjectStore}
  * @param callback {(items: Array) => void}
+ * @param predicate {(item) => boolean}
 */
 
-function query(store, { NAME, VAL }, callback) {
+function query(store, expression, callback, predicate) {
+    let { NAME, VAL } = expression;
+    if (typeof expression === "string") {
+        NAME = expression;
+        VAL = [];
+    }
+    predicate = predicate ? predicate : (_) => true
+
     if (simpleQueries.has(NAME)) {
         let results = []
-        let gather = (cursor) => {
-            if (cursor) {
-                results.push(cursor.value);
-                cursor.continue();
+        let gather = (item) => {
+            if (!isUndefined(item)) {
+                results.push(item);
             } else {
-                callback(results);
+                callback(results)
             }
         }
-        return simpleQuery(store, { NAME, VAL }, gather);
+        simpleQuery(store, { NAME, VAL }, gather, predicate);
     } else if (NAME === "And") {
         let [left, right] = VAL
         let resultCounter = {};
@@ -109,8 +154,8 @@ function query(store, { NAME, VAL }, callback) {
                 callback(finalResults);
             }
         };
-        query(store, left, gather);
-        query(store, right, gather);
+        query(store, left, gather, predicate);
+        query(store, right, gather, predicate);
     } else if (NAME === "Or") {
         let [left, right] = VAL
         let results = {}
@@ -122,21 +167,22 @@ function query(store, { NAME, VAL }, callback) {
                 callback(Object.values(results));
             }
         };
-        query(store, left, gather);
-        query(store, right, gather);
+        query(store, left, gather, predicate);
+        query(store, right, gather, predicate);
     }
 }
 
 /**
  * Runs the low level queries over an index
  * @param store {IDBObjectStore}
- * @param callback {(cursor: IDBCursor) => void}
 */
 
-function simpleQuery(store, { NAME, VAL }, callback) {
+function simpleQuery(store, { NAME, VAL }, gather, predicate) {
     let [attribute, ...values] = VAL;
     let range = (() => {
         switch (NAME) {
+            case "all":
+                return undefined;
             case "is":
                 return IDBKeyRange.only(values[0]);
             case "lt":
@@ -158,10 +204,18 @@ function simpleQuery(store, { NAME, VAL }, callback) {
 
         }
     })();
+
     openCursor(store, attribute, range).onsuccess = (event) => {
         let cursor = event.target.result;
-        callback(cursor);
-    }
+        if (cursor) {
+            if (predicate(cursor.value)) {
+                gather(cursor.value);
+            }
+            cursor.continue();
+        } else {
+            gather();
+        }
+    };
 }
 
 /**
@@ -172,7 +226,8 @@ function simpleQuery(store, { NAME, VAL }, callback) {
  * @returns {IDBRequest}
  */
 function openCursor(store, attribute, range) {
-    let index = attribute == store.keyPath ? store : store.index(attribute);
+    let index = isUndefined(attribute) || attribute == store.keyPath ?
+        store : store.index(attribute);
     return index.openCursor(range);
 }
 

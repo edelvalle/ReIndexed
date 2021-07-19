@@ -63,7 +63,7 @@ module Database = {
   ) => Js.Promise.t<t> = %raw(`
     function(name, version, upgrade) {
       return new Promise((resolve, reject) => {
-        var request = window.indexedDB.open(name, version);
+        var request = indexedDB.open(name, version);
         request.onupgradeneeded = (event) => {
           var db = event.target.result;
           upgrade(db, event.oldVersion, version, request.transaction);
@@ -79,5 +79,5 @@ module Database = {
     }
   `)
 
-  @module("./transaction") external transaction: 'a = "default"
+  @module("../../../src/transaction") external transaction: 'a = "default"
 }
