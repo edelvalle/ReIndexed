@@ -19,8 +19,13 @@ function transaction(db, requests) {
     });
 
     return new Promise((resolve) => {
+        let storesNames = getTransactionStores(storeCommands)
+        if (storesNames.length == 0) {
+            resolve(response);
+            return
+        }
         let transaction = db.transaction(
-            getTransactionStores(storeCommands),
+            storesNames,
             getTransactionMode(storeCommands)
         );
         transaction.oncomplete = () => resolve(response);
