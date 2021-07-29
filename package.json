@@ -7,7 +7,6 @@
     "esbuild": "^0.12.9",
     "qunit": "^2.16.0",
     "rescript": "^9.1.4",
-    "rescript-fast-check": "^1.0.4"
   },
   "dependencies": {},
   "description": "Kind of an IndexedDB ORM written in ReScript with no runtime dependencies.",
