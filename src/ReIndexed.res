@@ -1,18 +1,47 @@
 open Belt
 
-type connection = {mutable db: option<IDB.Database.t>}
+module type ModelT = {
+  type t
+  type index
+}
+
+module MakeModel = (Model: ModelT) => {
+  type t = Model.t
+  type index = Model.index
+  type value = string
+  type bound = [#incl(value) | #excl(value)]
+  type rec expression = [
+    | #all
+    | #is(index, value)
+    | #lt(index, value)
+    | #lte(index, value)
+    | #gt(index, value)
+    | #gte(index, value)
+    | #between(index, bound, bound)
+    | #And(expression, expression)
+    | #Or(expression, expression)
+  ]
+
+  type action = [
+    | #get(value)
+    | #delete(value)
+    | #save(t)
+    | #filter(expression, t => bool)
+    | #query(expression)
+    | #updateWhen(expression, t => option<t>)
+    | #deleteWhen(expression)
+    | #clear
+  ]
+  type actions = array<action>
+}
 
 module type DatabaseT = {
-  type table
-  // type request
-  // type response
   let migrations: unit => array<IDB.Migration.t>
 }
 
 module MakeDatabase = (Database: DatabaseT) => {
   // database & migrations
-  type table = Database.table
-
+  type connection = {mutable db: option<IDB.Database.t>}
   let connection = {db: None}
   let connect = name => {
     let migrations = Database.migrations()
@@ -29,42 +58,6 @@ module MakeDatabase = (Database: DatabaseT) => {
   }
 
   // let do: (IDB.Database.t, 'a) =>
-
-  module type ModelT = {
-    type t
-    type index
-    let table: Database.table
-  }
-
-  module MakeModel = (Model: ModelT) => {
-    type t = Model.t
-    type index = Model.index
-    type value = string
-    type bound = [#incl(value) | #excl(value)]
-    type rec expression = [
-      | #all
-      | #is(index, value)
-      | #lt(index, value)
-      | #lte(index, value)
-      | #gt(index, value)
-      | #gte(index, value)
-      | #between(index, bound, bound)
-      | #And(expression, expression)
-      | #Or(expression, expression)
-    ]
-
-    type action = [
-      | #get(value)
-      | #delete(value)
-      | #save(t)
-      | #filter(expression, t => bool)
-      | #query(expression)
-      | #updateWhen(expression, t => option<t>)
-      | #deleteWhen(expression)
-      | #clear
-    ]
-    type actions = array<action>
-  }
 
   module type QueryI = {
     type request
