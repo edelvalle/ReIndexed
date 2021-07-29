@@ -1,5 +1,5 @@
 {
-  "name": "ReIndexed",
+  "name": "@kaiko/reindexed",
   "version": "0.1.0",
   "sources": {
     "dir": "src",
