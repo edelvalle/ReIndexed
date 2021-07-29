@@ -1,4 +1,4 @@
-open ReInxed
+open ReIndexed
 open Belt
 
 let uuid4: unit => string = %raw(`

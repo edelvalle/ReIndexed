@@ -1,0 +1,34 @@
+stages:
+  - compile
+
+.x-compile: &with-compilation-script
+  image: node
+  cache:
+    key: "$CI_JOB_NAME-$CI_COMMIT_REF_SLUG"
+    paths:
+      - node_modules
+      - lib
+  script:
+    - make compile
+
+.x-when-mr: &when-merge-request
+  only:
+    - merge_requests
+
+.x-when-stable: &when-in-stable
+  only:
+    - main
+
+check that we can compile the whole thing before merging:
+  <<: *with-compilation-script
+  <<: *when-merge-request
+  stage: compile
+  tags:
+    - docker
+
+compile:
+  <<: *with-compilation-script
+  <<: *when-in-stable
+  stage: compile
+  tags:
+    - docker
