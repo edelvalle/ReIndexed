@@ -3,6 +3,11 @@ stages:
 
 .x-compile: &with-compilation-script
   image: node
+  cache:
+    key: "$CI_JOB_NAME-$CI_COMMIT_REF_SLUG"
+    paths:
+      - node_modules
+      - lib
   script:
     - make compile
 
