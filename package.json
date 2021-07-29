@@ -10,5 +10,8 @@
   },
   "dependencies": {},
   "description": "Kind of an IndexedDB ORM written in ReScript with no runtime dependencies.",
-  "author": "Kaiko Systems GmbH"
+  "author": "Kaiko Systems GmbH",
+  "package-specs": {
+    "in-source": true
+  }
 }
