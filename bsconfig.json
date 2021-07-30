@@ -1,8 +1,13 @@
 {
   "name": "@kaiko/reindexed",
   "version": "0.1.0",
-  "sources": {
-    "dir": "src",
-    "subdirs": true
-  }
+  "sources": [
+    {
+      "dir": "src"
+    },
+    {
+      "dir": "tests",
+      "type": "dev"
+    }
+  ]
 }

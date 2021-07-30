@@ -3,22 +3,19 @@ PATH := ./node_modules/.bin/:$(PATH)
 all: build
 
 clean:
-	rm -rf dist/
+	rm -rf lib/
 	touch package.json
 
-run:
+test: compile
 	@echo ">> To compile the ReScript run in another shell 'make rescript'"
 	@echo
-	esbuild lib/js/src/examples/index.js --bundle --outdir=www/js --servedir=www --serve=1234
+	esbuild lib/js/tests/index.js --bundle --outdir=www --servedir=www --serve=1234
 
 compile: install
 	rescript build
 
 keep-compiling: install
 	rescript build -w
-
-build: install compile
-	cp src/transaction.js lib/js/src/
 
 install: package.json bsconfig.json
 	yarn install

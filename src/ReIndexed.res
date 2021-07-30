@@ -62,18 +62,24 @@ module MakeDatabase = (Database: DatabaseT) => {
   module type QueryI = {
     type request
     type response
-    let connection: connection
     let make: unit => request
     let makeResponse: unit => response
   }
   module MakeQuery = (Query: QueryI) => {
     type request = Query.request
     type response = Query.response
+
+    external requestToDict: request => Js.Dict.t<array<'a>> = "%identity"
+    external dictToResponse: Js.Dict.t<array<'a>> => response = "%identity"
+
     let make = Query.make
     external value: 'a => string = "%identity"
     let do = (request: request): Js.Promise.t<response> => {
       switch connection.db {
-      | Some(db) => db->IDB.Database.transaction(request)
+      | Some(db) =>
+        db
+        ->ReIndexed__Transaction.execute(request->requestToDict)
+        ->Js.Promise.then_(response => response->dictToResponse->Js.Promise.resolve, _)
       | None =>
         Js.Promise.make((~resolve, ~reject) => {
           let _ = reject

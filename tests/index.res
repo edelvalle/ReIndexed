@@ -10,26 +10,18 @@ let uuid4: unit => string = %raw(`
   }
 `)
 
-let discard = _ => ()
+let ignore = _ => ()
 let chooseFrom = choices => choices->Array.getUnsafe(Js.Math.random_int(0, choices->Array.length))
-let then = Js.Promise.then_
+let then = (promise, function) => Js.Promise.then_(function, promise)
 let resolve = Js.Promise.resolve
 
-let rec cascade = (promise: Js.Promise.t<'t>, functions: list<'t => Js.Promise.t<'t>>): unit => {
-  switch functions->List.head {
-  | None => ()
-  | Some(function) => {
-      let new_promise = promise->then(result => {result->function}, _)
-      switch functions->List.tail {
-      | None => ()
-      | Some(remaining_functions) => cascade(new_promise, remaining_functions)
-      }
-    }
-  }
+module VesselDef = {
+  type t = {id: string, name: string, age: int}
+  type index = [#id | #name | #age]
 }
+module Vessel = MakeModel(VesselDef)
 
-module DatabaseDef = {
-  type table = [#vessels]
+module Database = MakeDatabase({
   let migrations = () => {
     open IDB.Migration
     [
@@ -45,18 +37,9 @@ module DatabaseDef = {
       },
     ]
   }
-}
-module Database = MakeDatabase(DatabaseDef)
-
-module VesselDef = {
-  type t = {id: string, name: string, age: int}
-  type index = [#id | #name | #age]
-  let table: Database.table = #vessels
-}
-module Vessel = Database.MakeModel(VesselDef)
+})
 
 module QueryDef = {
-  let connection = Database.connection
   type request = {vessels: array<Vessel.action>}
   type response = {vessels: array<Vessel.t>}
   let make = (): request => {vessels: []}
@@ -65,7 +48,8 @@ module QueryDef = {
 
 module Query = Database.MakeQuery(QueryDef)
 
-Database.connect("test_database")->then(_db => {
+Database.connect("test_database")
+->then(_db => {
   let vessels: array<Vessel.t> = [
     {id: "a", name: "MS Anag", age: 10},
     {id: "b", name: "MS Anag", age: 15},
@@ -79,48 +63,49 @@ Database.connect("test_database")->then(_db => {
   module_("Base", hooks => {
     hooks->beforeEach(x => {
       let done = x->async
+      Js.log("before")
       {vessels: [#clear]->Array.concat(vessels->Array.map(v => #save(v)))}
       ->Query.do
-      ->cascade(list{
-        results => {
-          done()
-          resolve(results)
-        },
+      ->then(results => {
+        Js.log("result")
+        done()
+        resolve(results)
       })
+      ->ignore
     })
 
     test("Can read all the stored vessels", x => {
       let done = x->async
-      Query.do({vessels: [#query(#all)]})->then((results: Query.response) => {
+      Query.do({vessels: [#query(#all)]})
+      ->then((results: Query.response) => {
         x->equal(results.vessels->Array.length, 5, "There should be 5 vessels")
         x->deepEqual(results.vessels, vessels, "The vessels match the stored vessels")
         resolve(done())
-      }, _)->discard
+      })
+      ->ignore
     })
 
     test("Can delete all stored vessels at once", x => {
       let done = x->asyncMany(2)
-      Query.do({vessels: [#query(#all)]})->cascade(list{
-        results => {
-          x->equal(results.vessels->Array.length, 5, "There should be 5 vessels")
-          done()
-          Query.do({vessels: [#clear, #query(#all)]})
-        },
-        results => {
-          x->equal(
-            results.vessels->Array.length,
-            0,
-            "There most be no vessels stored after 'clear'",
-          )
-          done()
-          resolve(results)
-        },
+      Query.do({vessels: [#query(#all)]})
+      ->then(results => {
+        x->equal(results.vessels->Array.length, 5, "There should be 5 vessels")
+        done()
+        Query.do({vessels: [#clear, #query(#all)]})
       })
+      ->then(results => {
+        x->equal(results.vessels->Array.length, 0, "There most be no vessels stored after 'clear'")
+        done()
+        resolve(results)
+      })
+      ->ignore
     })
 
     test("Can delete a single vessel by key", x => {
       let done = x->async
-      {vessels: [#delete("a"), #query(#all)]}->Query.do->then((results: Query.response) => {
+      {vessels: [#delete("a"), #query(#all)]}
+      ->Query.do
+      ->then((results: Query.response) => {
         x->equal(results.vessels->Array.length, 4, "There should be just 4 vessels")
         x->isFalse(
           results.vessels->Array.some(vessel => vessel.id == "a"),
@@ -128,12 +113,15 @@ Database.connect("test_database")->then(_db => {
         )
         done()
         resolve()
-      }, _)->discard
+      })
+      ->ignore
     })
 
     test("Can retrieve a single vessel by key", x => {
       let done = x->async
-      {vessels: [#get("a")]}->Query.do->then((results: Query.response) => {
+      {vessels: [#get("a")]}
+      ->Query.do
+      ->then((results: Query.response) => {
         x->equal(results.vessels->Array.length, 1, "There should be just 1 vessels")
         x->deepEqual(
           results.vessels->Array.get(0),
@@ -142,7 +130,8 @@ Database.connect("test_database")->then(_db => {
         )
         done()
         resolve()
-      }, _)->discard
+      })
+      ->ignore
     })
 
     test("Can add a new vessel", x => {
@@ -160,8 +149,8 @@ Database.connect("test_database")->then(_db => {
         )
         done()
         resolve()
-      }, _)
-      ->discard
+      })
+      ->ignore
     })
 
     let checkResultantKeys = (x, query, keys) => {
@@ -175,8 +164,8 @@ Database.connect("test_database")->then(_db => {
         x->deepEqual(retrievedKeys, keys, "Retrieved should keys match")
         done()
         resolve()
-      }, _)
-      ->discard
+      })
+      ->ignore
     }
 
     module_("Test term on primary key", _ => {
@@ -309,8 +298,8 @@ Database.connect("test_database")->then(_db => {
         x->deepEqual(results.vessels, expected, "Should match the remaining objects")
         done()
         resolve()
-      }, _)
-      ->discard
+      })
+      ->ignore
     }
 
     module_("Conditional update", _ => {
@@ -344,27 +333,26 @@ Database.connect("test_database")->then(_db => {
           ],
         }
         ->Query.do
-        ->cascade(list{
-          _ => {
-            done()
-            {vessels: [#query(#all)]}->Query.do
-          },
-          results => {
-            x->deepEqual(
-              results.vessels,
-              [
-                {id: "a", name: "MS Anag", age: 0},
-                {id: "b", name: "MS Anag", age: 0},
-                {id: "c", name: "MS Fresco", age: 5},
-                {id: "d", name: "Mc Donald", age: 20},
-                {id: "x", name: "Mc Donald", age: 15},
-              ],
-              "Vessels with name `MS Anag` shuold have age=0",
-            )
-            done()
-            resolve(results)
-          },
+        ->then(_ => {
+          done()
+          {vessels: [#query(#all)]}->Query.do
         })
+        ->then(results => {
+          x->deepEqual(
+            results.vessels,
+            [
+              {id: "a", name: "MS Anag", age: 0},
+              {id: "b", name: "MS Anag", age: 0},
+              {id: "c", name: "MS Fresco", age: 5},
+              {id: "d", name: "Mc Donald", age: 20},
+              {id: "x", name: "Mc Donald", age: 15},
+            ],
+            "Vessels with name `MS Anag` shuold have age=0",
+          )
+          done()
+          resolve()
+        })
+        ->ignore
       })
     })
 
@@ -373,25 +361,24 @@ Database.connect("test_database")->then(_db => {
         let done = x->asyncMany(2)
         {vessels: [#deleteWhen(#is(#age, Query.value(15)))]}
         ->Query.do
-        ->cascade(list{
-          _ => {
-            done()
-            {vessels: [#query(#all)]}->Query.do
-          },
-          results => {
-            x->deepEqual(
-              results.vessels,
-              [
-                {id: "a", name: "MS Anag", age: 10},
-                {id: "c", name: "MS Fresco", age: 5},
-                {id: "d", name: "Mc Donald", age: 20},
-              ],
-              "The ones with age!=15 should remain",
-            )
-            done()
-            resolve(results)
-          },
+        ->then(_ => {
+          done()
+          {vessels: [#query(#all)]}->Query.do
         })
+        ->then(results => {
+          x->deepEqual(
+            results.vessels,
+            [
+              {id: "a", name: "MS Anag", age: 10},
+              {id: "c", name: "MS Fresco", age: 5},
+              {id: "d", name: "Mc Donald", age: 20},
+            ],
+            "The ones with age!=15 should remain",
+          )
+          done()
+          resolve()
+        })
+        ->ignore
       })
     })
   })
@@ -407,15 +394,21 @@ Database.connect("test_database")->then(_db => {
       })
       let done = x->asyncMany(3)
       let start = Js.Date.now()->Int.fromFloat
-      {vessels: vessels->Array.map(v => #save(v))}->Query.do->then(_ => {
+      {vessels: vessels->Array.map(v => #save(v))}
+      ->Query.do
+      ->then(_ => {
         let afterInsert = Js.Date.now()->Int.fromFloat
         x->isTrue(true, `Insertion done in ${(afterInsert - start)->Int.toString}ms`)
 
-        {vessels: [#query(#all)]}->Query.do->then(_ => {
+        {vessels: [#query(#all)]}
+        ->Query.do
+        ->then(_ => {
           let afterReadAll = Js.Date.now()->Int.fromFloat
           x->isTrue(true, `Read all done in ${(afterReadAll - afterInsert)->Int.toString}ms`)
 
-          {vessels: [#query(#is(#name, "Cachimba"))]}->Query.do->then(_ => {
+          {vessels: [#query(#is(#name, "Cachimba"))]}
+          ->Query.do
+          ->then(_ => {
             let readFromIndex = Js.Date.now()->Int.fromFloat
             x->isTrue(
               true,
@@ -423,14 +416,18 @@ Database.connect("test_database")->then(_db => {
             )
             done()
             resolve()
-          }, _)->discard
+          })
+          ->ignore
           done()
           resolve()
-        }, _)->discard
+        })
+        ->ignore
         done()
         resolve()
-      }, _)->discard
+      })
+      ->ignore
     })
   })
   resolve()
-}, _)->discard
+})
+->ignore

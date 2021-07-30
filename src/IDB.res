@@ -39,14 +39,52 @@ module Migration = {
   type t = (Database.t, Transaction.t) => unit
 }
 
+module Cursor = {
+  type t
+  @get external value: t => 'value = "value"
+  @send external continue: t => unit = "continue"
+}
+
+module CursorEvent = {
+  type t
+  @get @scope("target") external cursor: t => Js.Nullable.t<Cursor.t> = "result"
+}
+
+module Request = {
+  type t
+  @set external onsuccess: (t, CursorEvent.t => unit) => unit = "onsuccess"
+  @get external result: t => option<'a> = "result"
+}
+
+module KeyRange = {
+  type t
+  @val @scope("IDBKeyRange") external only: 'a => t = "only"
+  @val @scope("IDBKeyRange") external upperBound: ('a, bool) => t = "upperBound"
+  @val @scope("IDBKeyRange") external lowerBound: ('a, bool) => t = "lowerBound"
+  @val @scope("IDBKeyRange") external bound: ('a, 'a, bool, bool) => t = "bound"
+}
+
+module Index = {
+  type t
+  @send external openCursor: (t, option<KeyRange.t>) => Request.t = "openCursor"
+}
+
 module Store = {
   type t
-  @send external put: (t, 'a) => unit = "put"
+  @get external keyPath: t => string = "keyPath"
+  @get external name: t => string = "name"
+  @send external put: (t, 'a) => Request.t = "put"
+  @send external get: (t, string) => Request.t = "get"
+  @send external delete: (t, string) => Request.t = "delete"
+  @send external clear: t => Request.t = "clear"
+  @send external index: (t, string) => Index.t = "index"
+  @send external openCursor: (t, option<KeyRange.t>) => Request.t = "openCursor"
 }
 
 module Transaction = {
   type t
   @send external objectStore: (t, string) => Store.t = "objectStore"
+  @set external oncomplete: (t, unit => unit) => unit = "oncomplete"
 }
 
 module Database = {
@@ -79,5 +117,9 @@ module Database = {
     }
   `)
 
-  @module("./transaction") external transaction: 'a = "default"
+  type transactionMode = [#readwrite | #readonly]
+  @send external transaction: (t, array<string>, transactionMode) => Transaction.t = "transaction"
+
+  // @module("./transaction") external transaction: 'a = "default"
+  // let transaction = Transaction.transaction
 }
