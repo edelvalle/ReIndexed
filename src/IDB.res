@@ -36,6 +36,21 @@ module Migration = {
     @send external deleteObjectStore: (t, string) => unit = "deleteObjectStore"
   }
 
+  /// Utilities to "standard" migrations
+  module Utils = {
+    /// Calls `createIndex(a, a)` for each item in the array.
+    let createManyIndexes = (obj: Store.t, indexes: array<string>): Store.t => {
+      indexes->Js.Array2.forEach(a => obj->Store.createIndex(a, a))
+      obj
+    }
+
+    /// Creates a store with a `name` in the given `db` and calls
+    /// `createManyIndexes` afterwards.
+    let createStandardStore = (db: Database.t, name: string, indexes: array<string>): Store.t => {
+      db->Database.createObjectStore(name)->createManyIndexes(indexes)
+    }
+  }
+
   type t = (Database.t, Transaction.t) => unit
 }
 
