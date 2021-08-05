@@ -169,7 +169,8 @@ let execute = (db, requests) => {
   let response = Js.Dict.empty()
   requests->Js.Dict.keys->Array.forEach(key => response->Js.Dict.set(key, []))
 
-  let storeCommands = requests->Js.Dict.entries
+  let storeCommands =
+    requests->Js.Dict.entries->Array.keep(((_key, actions)) => actions->Array.length != 0)
   Js.Promise.make((~resolve, ~reject) => {
     reject->ignore
     let storeNames = getTransactionStores(storeCommands)
