@@ -13,6 +13,7 @@ let uuid4: unit => string = %raw(`
 let ignore = _ => ()
 let chooseFrom = choices => choices->Array.getUnsafe(Js.Math.random_int(0, choices->Array.length))
 let then = (promise, function) => Js.Promise.then_(function, promise)
+let catch = (promise, function) => Js.Promise.catch(function, promise)
 let resolve = Js.Promise.resolve
 
 module VesselDef = {
@@ -20,6 +21,13 @@ module VesselDef = {
   type index = [#id | #name | #age]
 }
 module Vessel = MakeModel(VesselDef)
+
+module StaffDef = {
+  type position = [#shore | #crew]
+  type t = {id: string, name: string, age: int, position: position}
+  type index = [#id | #name | #age | #position]
+}
+module Staff = MakeModel(StaffDef)
 
 module Database = MakeDatabase({
   let migrations = () => {
@@ -31,19 +39,17 @@ module Database = MakeDatabase({
         store->Store.createIndex("age", "age")
       },
       (db, _transaction): unit => {
-        let store = db->Database.createObjectStore("crew")
-        store->Store.createIndex("name", "name")
-        store->Store.createIndex("age", "age")
+        db->Utils.createStandardStore("staff", ["name", "age", "position"])->ignore
       },
     ]
   }
 })
 
 module QueryDef = {
-  type request = {vessels: array<Vessel.action>}
-  type response = {vessels: array<Vessel.t>}
-  let make = (): request => {vessels: []}
-  let makeResponse = (): response => {vessels: []}
+  type request = {vessels: array<Vessel.action>, staff: array<Staff.action>}
+  type response = {vessels: array<Vessel.t>, staff: array<Staff.t>}
+  let make = (): request => {vessels: [], staff: []}
+  let makeResponse = (): response => {vessels: [], staff: []}
 }
 
 module Query = Database.MakeQuery(QueryDef)
@@ -60,23 +66,31 @@ Database.connect("test_database")
 
   open QUnit
 
+  let setUp = done => {
+    Js.log("before")
+
+    {...Query.make(), vessels: [#clear]->Array.concat(vessels->Array.map(v => #save(v)))}
+    ->Query.do
+    ->then(results => {
+      Js.log("result")
+      done()
+      resolve(results)
+    })
+  }
+
   module_("Base", hooks => {
     hooks->beforeEach(x => {
+      x->timeout(10000)
       let done = x->async
-      Js.log("before")
-      {vessels: [#clear]->Array.concat(vessels->Array.map(v => #save(v)))}
-      ->Query.do
-      ->then(results => {
-        Js.log("result")
-        done()
-        resolve(results)
-      })
-      ->ignore
+      switch setUp(done) {
+      | x => x->ignore
+      | exception any => Js.log(("See me fail", any))
+      }
     })
 
     test("Can read all the stored vessels", x => {
       let done = x->async
-      Query.do({vessels: [#query(#all)]})
+      Query.do({...Query.make(), vessels: [#query(#all)]})
       ->then((results: Query.response) => {
         x->equal(results.vessels->Array.length, 5, "There should be 5 vessels")
         x->deepEqual(results.vessels, vessels, "The vessels match the stored vessels")
@@ -87,11 +101,11 @@ Database.connect("test_database")
 
     test("Can delete all stored vessels at once", x => {
       let done = x->asyncMany(2)
-      Query.do({vessels: [#query(#all)]})
+      Query.do({...Query.make(), vessels: [#query(#all)]})
       ->then(results => {
         x->equal(results.vessels->Array.length, 5, "There should be 5 vessels")
         done()
-        Query.do({vessels: [#clear, #query(#all)]})
+        Query.do({...Query.make(), vessels: [#clear, #query(#all)]})
       })
       ->then(results => {
         x->equal(results.vessels->Array.length, 0, "There most be no vessels stored after 'clear'")
@@ -103,7 +117,7 @@ Database.connect("test_database")
 
     test("Can delete a single vessel by key", x => {
       let done = x->async
-      {vessels: [#delete("a"), #query(#all)]}
+      {...Query.make(), vessels: [#delete("a"), #query(#all)]}
       ->Query.do
       ->then((results: Query.response) => {
         x->equal(results.vessels->Array.length, 4, "There should be just 4 vessels")
@@ -119,7 +133,7 @@ Database.connect("test_database")
 
     test("Can retrieve a single vessel by key", x => {
       let done = x->async
-      {vessels: [#get("a")]}
+      {...Query.make(), vessels: [#get("a")]}
       ->Query.do
       ->then((results: Query.response) => {
         x->equal(results.vessels->Array.length, 1, "There should be just 1 vessels")
@@ -137,6 +151,7 @@ Database.connect("test_database")
     test("Can add a new vessel", x => {
       let done = x->async
       {
+        ...Query.make(),
         vessels: [#save({id: "new", name: "MS New", age: 30}), #query(#all)],
       }
       ->Query.do
@@ -156,6 +171,7 @@ Database.connect("test_database")
     let checkResultantKeys = (x, query, keys) => {
       let done = x->async
       {
+        ...Query.make(),
         vessels: [query],
       }
       ->Query.do
@@ -291,6 +307,7 @@ Database.connect("test_database")
     let checkRemainingItems = (x, query, expected) => {
       let done = x->async
       {
+        ...Query.make(),
         vessels: [query, #query(#all)],
       }
       ->Query.do
@@ -319,6 +336,7 @@ Database.connect("test_database")
       test("If the the predicate returns Some(vessel) it is modified", x => {
         let done = x->asyncMany(2)
         {
+          ...Query.make(),
           vessels: [
             #updateWhen(
               #all,
@@ -335,7 +353,7 @@ Database.connect("test_database")
         ->Query.do
         ->then(_ => {
           done()
-          {vessels: [#query(#all)]}->Query.do
+          {...Query.make(), vessels: [#query(#all)]}->Query.do
         })
         ->then(results => {
           x->deepEqual(
@@ -359,11 +377,11 @@ Database.connect("test_database")
     module_("Conditional deletion", _ => {
       test("Deleting the ones with `age = 15` should left the rest intact", x => {
         let done = x->asyncMany(2)
-        {vessels: [#deleteWhen(#is(#age, Query.value(15)))]}
+        {...Query.make(), vessels: [#deleteWhen(#is(#age, Query.value(15)))]}
         ->Query.do
         ->then(_ => {
           done()
-          {vessels: [#query(#all)]}->Query.do
+          {...Query.make(), vessels: [#query(#all)]}->Query.do
         })
         ->then(results => {
           x->deepEqual(
@@ -394,19 +412,19 @@ Database.connect("test_database")
       })
       let done = x->asyncMany(3)
       let start = Js.Date.now()->Int.fromFloat
-      {vessels: vessels->Array.map(v => #save(v))}
+      {...Query.make(), vessels: vessels->Array.map(v => #save(v))}
       ->Query.do
       ->then(_ => {
         let afterInsert = Js.Date.now()->Int.fromFloat
         x->isTrue(true, `Insertion done in ${(afterInsert - start)->Int.toString}ms`)
 
-        {vessels: [#query(#all)]}
+        {...Query.make(), vessels: [#query(#all)]}
         ->Query.do
         ->then(_ => {
           let afterReadAll = Js.Date.now()->Int.fromFloat
           x->isTrue(true, `Read all done in ${(afterReadAll - afterInsert)->Int.toString}ms`)
 
-          {vessels: [#query(#is(#name, "Cachimba"))]}
+          {...Query.make(), vessels: [#query(#is(#name, "Cachimba"))]}
           ->Query.do
           ->then(_ => {
             let readFromIndex = Js.Date.now()->Int.fromFloat
