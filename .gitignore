@@ -1,6 +1,5 @@
 .bsb.lock
 .merlin
-lib/bs
-lib/js
+lib/
 node_modules/
 www/js

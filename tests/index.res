@@ -176,7 +176,8 @@ Database.connect("test_database")
       }
       ->Query.do
       ->then((results: Query.response) => {
-        let retrievedKeys = results.vessels->Array.map(vessel => vessel.id)
+        let retrievedKeys = results.vessels->Array.map(vessel => vessel.id)->Js.Array.sortInPlace
+        let keys = keys->Js.Array.sortInPlace
         x->deepEqual(retrievedKeys, keys, "Retrieved should keys match")
         done()
         resolve()
@@ -300,6 +301,30 @@ Database.connect("test_database")
         x->checkResultantKeys(
           #query(#Or(#lt(#age, Query.value(15)), #gt(#age, Query.value(15)))),
           ["d", "c", "a"],
+        )
+      })
+    })
+
+    module_("anyOf operator", _ => {
+      test("Quering a single item that is not present returns nothing", x => {
+        x->checkResultantKeys(#query(#anyOf(#age, [Query.value(17)])), [])
+      })
+
+      test("Quering a on a single value can return multiple candidates", x => {
+        x->checkResultantKeys(#query(#anyOf(#name, ["MS Anag"])), ["a", "b"])
+      })
+
+      test("Quering a on a multiple values returns multiple candidates", x => {
+        x->checkResultantKeys(
+          #query(#anyOf(#name, ["MS Anag", "Mc Donald", "MS Anag"])),
+          ["a", "b", "d", "x"],
+        )
+      })
+
+      test("Quering with in can be combined with logical operators", x => {
+        x->checkResultantKeys(
+          #query(#Or(#anyOf(#name, ["MS Anag", "Mc Donald"]), #anyOf(#age, [Query.value(5)]))),
+          ["a", "b", "c", "d", "x"],
         )
       })
     })

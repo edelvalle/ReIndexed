@@ -57,7 +57,9 @@ module Migration = {
 module Cursor = {
   type t
   @get external value: t => 'value = "value"
+  @get external key: t => 'key = "key"
   @send external continue: t => unit = "continue"
+  @send external continueTo: (t, 'a) => unit = "continue"
 }
 
 module CursorEvent = {

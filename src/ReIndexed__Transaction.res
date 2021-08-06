@@ -1,33 +1,6 @@
 open Belt
 open IDB
 
-// type index = string
-// type value = string
-// type bound = [#incl(value) | #excl(value)]
-
-// type rec expression = [
-//   | #all
-//   | #is(index, value)
-//   | #lt(index, value)
-//   | #lte(index, value)
-//   | #gt(index, value)
-//   | #gte(index, value)
-//   | #between(index, bound, bound)
-//   | #And(expression, expression)
-//   | #Or(expression, expression)
-// ]
-
-// type action<'a> = [
-//   | #get(value)
-//   | #delete(value)
-//   | #save('a)
-//   | #filter(expression, 'a => bool)
-//   | #query(expression)
-//   | #updateWhen(expression, 'a => option<'a>)
-//   | #deleteWhen(expression)
-//   | #clear
-// ]
-
 let openCursor = (store, attribute, range) => {
   let openCursor = switch attribute {
   | None => store->Store.openCursor
@@ -68,6 +41,7 @@ let simpleQuery = (store, term, gather, predicate) => {
 
   openCursor(store, attribute, range)->Request.onsuccess(event => {
     switch event->CursorEvent.cursor->Js.Nullable.toOption {
+    | None => gather(None)
     | Some(cursor) => {
         let value = cursor->Cursor.value
         switch predicate {
@@ -79,14 +53,57 @@ let simpleQuery = (store, term, gather, predicate) => {
         }
         cursor->Cursor.continue
       }
-    | None => gather(None)
     }
   })
 }
 
+let anyOf = (store, attribute, values, gather, predicate) => {
+  switch values {
+  | [] => gather(None)
+  | [value] => simpleQuery(store, #is(attribute, value), gather, predicate)
+  | values => {
+      let values = values->Set.String.fromArray->Set.String.toArray->Js.Array2.sortInPlace
+      let n_values = values->Array.length
+      let lower = values->Array.getUnsafe(0)
+      let upper = values->Array.getUnsafe(n_values - 1)
+      let range = KeyRange.bound(lower, upper, false, false)
+      let i = ref(0)
+      openCursor(store, Some(attribute), Some(range))->Request.onsuccess(event => {
+        switch event->CursorEvent.cursor->Js.Nullable.toOption {
+        | None => gather(None)
+        | Some(cursor) => {
+            let key = cursor->Cursor.key
+            while i.contents < n_values && key > values->Array.getUnsafe(i.contents) {
+              i := i.contents + 1
+              if i.contents == n_values {
+                gather(None)
+              }
+            }
+            if i.contents < n_values {
+              let currentValue = values->Array.getUnsafe(i.contents)
+              if key == currentValue {
+                gather(Some(cursor->Cursor.value))
+                cursor->Cursor.continue
+              } else {
+                cursor->Cursor.continueTo(currentValue)
+              }
+            }
+          }
+        }
+      })
+    }
+  }
+}
+
 let rec query = (store, expression, callback, predicate) => {
   switch expression {
-  | #all | #is(_, _) | #lt(_, _) | #lte(_, _) | #gt(_, _) | #gte(_, _) | #between(_, _, _) => {
+  | #all
+  | #is(_, _)
+  | #lt(_, _)
+  | #lte(_, _)
+  | #gt(_, _)
+  | #gte(_, _)
+  | #between(_, _, _) => {
       let results = []
       let gather = item => {
         switch item {
@@ -95,6 +112,16 @@ let rec query = (store, expression, callback, predicate) => {
         }
       }
       simpleQuery(store, expression, gather, predicate)
+    }
+  | #anyOf(attribute, values) => {
+      let results = []
+      let gather = item => {
+        switch item {
+        | Some(item) => results->Js.Array2.push(item)->ignore
+        | None => callback(results)
+        }
+      }
+      anyOf(store, attribute, values, gather, predicate)
     }
   | #And(left, right) => {
       let resultCounter = Js.Dict.empty()

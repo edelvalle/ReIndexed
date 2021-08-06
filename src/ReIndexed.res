@@ -18,6 +18,7 @@ module MakeModel = (Model: ModelT) => {
     | #gt(index, value)
     | #gte(index, value)
     | #between(index, bound, bound)
+    | #anyOf(index, array<value>)
     | #And(expression, expression)
     | #Or(expression, expression)
   ]
