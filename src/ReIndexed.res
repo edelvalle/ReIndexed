@@ -9,31 +9,31 @@ module MakeModel = (Model: ModelT) => {
   type t = Model.t
   type index = Model.index
   type value = string
-  type bound = [#incl(value) | #excl(value)]
-  type rec expression = [
-    | #all
-    | #is(index, value)
-    | #lt(index, value)
-    | #lte(index, value)
-    | #gt(index, value)
-    | #gte(index, value)
-    | #between(index, bound, bound)
-    | #anyOf(index, array<value>)
-    | #And(expression, expression)
-    | #Or(expression, expression)
-  ]
+  type bound =
+    | Incl(value)
+    | Excl(value)
 
-  type action = [
-    | #get(value)
-    | #delete(value)
-    | #save(t)
-    | #filter(expression, t => bool)
-    | #query(expression)
-    | #updateWhen(expression, t => option<t>)
-    | #deleteWhen(expression)
-    | #clear
-  ]
-  type actions = array<action>
+  type rec read =
+    | NoOp
+    | All
+    | Get(value)
+    | Is(index, value)
+    | Lt(index, value)
+    | Lte(index, value)
+    | Gt(index, value)
+    | Gte(index, value)
+    | Between(index, bound, bound)
+    | AnyOf(index, array<value>)
+    | Filter(read, t => bool)
+    | And(read, read)
+    | Or(read, read)
+
+  type write =
+    | Clear
+    | Save(t)
+    | Delete(value)
+
+  type actions = array<write>
 }
 
 module type DatabaseT = {
@@ -58,35 +58,66 @@ module MakeDatabase = (Database: DatabaseT) => {
     }, _)
   }
 
-  // let do: (IDB.Database.t, 'a) =>
-
   module type QueryI = {
-    type request
+    type read
+    type write
     type response
-    let make: unit => request
-    let makeResponse: unit => response
+    let makeRead: unit => read
+    let makeWrite: unit => write
   }
   module MakeQuery = (Query: QueryI) => {
-    type request = Query.request
+    type read = Query.read
+    type write = Query.write
     type response = Query.response
+    type query =
+      | Read(response => read)
+      | Write(response => write)
 
-    external requestToDict: request => Js.Dict.t<array<'a>> = "%identity"
+    type queries = array<query>
+
+    let makeRead = Query.makeRead
+    let makeWrite = Query.makeWrite
+
+    external readToDict: read => Js.Dict.t<ReIndexed_Transaction.read<'a>> = "%identity"
+    external writeToDict: write => Js.Dict.t<array<ReIndexed_Transaction.write<'a>>> = "%identity"
     external dictToResponse: Js.Dict.t<array<'a>> => response = "%identity"
-
-    let make = Query.make
+    external transformQueries: queries => array<ReIndexed_Transaction.query<'a, 'b>> = "%identity"
     external value: 'a => string = "%identity"
-    let do = (request: request): Js.Promise.t<response> => {
+
+    let _withDb = f =>
       switch connection.db {
-      | Some(db) =>
-        db
-        ->ReIndexed__Transaction.execute(request->requestToDict)
-        ->Js.Promise.then_(response => response->dictToResponse->Js.Promise.resolve, _)
+      | Some(db) => db->f
       | None =>
         Js.Promise.make((~resolve, ~reject) => {
-          let _ = reject
-          resolve(. Query.makeResponse())
+          resolve->ignore
+          reject(. Js.Exn.raiseError("The database is not connected"))
         })
       }
+
+    let read = read =>
+      _withDb(db =>
+        db
+        ->ReIndexed_Transaction.read(read->readToDict)
+        ->Js.Promise.then_(response => response->dictToResponse->Js.Promise.resolve, _)
+      )
+
+    let write = write =>
+      _withDb(db =>
+        db
+        ->ReIndexed_Transaction.write(write->writeToDict)
+        ->Js.Promise.then_(response => response->dictToResponse->Js.Promise.resolve, _)
+      )
+
+    let do = (queries: queries): Js.Promise.t<response> => {
+      // queries->Array.map((queryFunction) => switch queryFunction {
+      //   | Write(f) => Write((response) => response->f->writeToDict)
+      //   | Read(f) -> Read(request.readToDict
+      // })
+      _withDb(db =>
+        db
+        ->ReIndexed_Transaction.do(queries->transformQueries)
+        ->Js.Promise.then_(response => response->dictToResponse->Js.Promise.resolve, _)
+      )
     }
   }
 }

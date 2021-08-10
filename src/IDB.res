@@ -137,6 +137,5 @@ module Database = {
   type transactionMode = [#readwrite | #readonly]
   @send external transaction: (t, array<string>, transactionMode) => Transaction.t = "transaction"
 
-  // @module("./transaction") external transaction: 'a = "default"
-  // let transaction = Transaction.transaction
+  @get external objectStoreNames: t => array<string> = "objectStoreNames"
 }

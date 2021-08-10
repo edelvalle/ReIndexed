@@ -1,0 +1,45 @@
+module_("Performance test", _ => {
+    test("Bulk insert of 10.000 items", x => {
+      let names = ["MS Angst", "MS Angust", "Cachimba", "Record MSX", "VAX", "UNIVAC"]
+
+      let vessels = Array.makeBy(10000, (_): Vessel.t => {
+        id: uuid4(),
+        name: chooseFrom(names),
+        age: Js.Math.random_int(0, 100),
+      })
+      let done = x->asyncMany(3)
+      let start = Js.Date.now()->Int.fromFloat
+      {...Query.make(), vessels: vessels->Array.map(v => #save(v))}
+      ->Query.do
+      ->then(_ => {
+        let afterInsert = Js.Date.now()->Int.fromFloat
+        x->isTrue(true, `Insertion done in ${(afterInsert - start)->Int.toString}ms`)
+
+        {...Query.make(), vessels: [#query(#all)]}
+        ->Query.do
+        ->then(_ => {
+          let afterReadAll = Js.Date.now()->Int.fromFloat
+          x->isTrue(true, `Read all done in ${(afterReadAll - afterInsert)->Int.toString}ms`)
+
+          {...Query.make(), vessels: [#query(#is(#name, "Cachimba"))]}
+          ->Query.do
+          ->then(_ => {
+            let readFromIndex = Js.Date.now()->Int.fromFloat
+            x->isTrue(
+              true,
+              `Read from single index in ${(readFromIndex - afterReadAll)->Int.toString}ms`,
+            )
+            done()
+            resolve()
+          })
+          ->ignore
+          done()
+          resolve()
+        })
+        ->ignore
+        done()
+        resolve()
+      })
+      ->ignore
+    })
+  })
