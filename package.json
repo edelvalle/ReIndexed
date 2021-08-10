@@ -1,6 +1,6 @@
 {
   "name": "@kaiko/reindexed",
-  "version": "0.3.1",
+  "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
   "devDependencies": {
