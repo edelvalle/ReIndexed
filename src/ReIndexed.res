@@ -1,5 +1,7 @@
 open Belt
 
+external value: 'a => string = "%identity"
+
 module type ModelT = {
   type t
   type index
@@ -82,7 +84,7 @@ module MakeDatabase = (Database: DatabaseT) => {
     external writeToDict: write => Js.Dict.t<array<ReIndexed_Transaction.write<'a>>> = "%identity"
     external dictToResponse: Js.Dict.t<array<'a>> => response = "%identity"
     external transformQueries: queries => array<ReIndexed_Transaction.query<'a, 'b>> = "%identity"
-    external value: 'a => string = "%identity"
+    let value = value
 
     let _withDb = f =>
       switch connection.db {
@@ -109,10 +111,6 @@ module MakeDatabase = (Database: DatabaseT) => {
       )
 
     let do = (queries: queries): Js.Promise.t<response> => {
-      // queries->Array.map((queryFunction) => switch queryFunction {
-      //   | Write(f) => Write((response) => response->f->writeToDict)
-      //   | Read(f) -> Read(request.readToDict
-      // })
       _withDb(db =>
         db
         ->ReIndexed_Transaction.do(queries->transformQueries)
