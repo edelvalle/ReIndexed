@@ -19,6 +19,7 @@ module MakeModel = (Model: ModelT) => {
     | NoOp
     | All
     | Get(value)
+    | NotNull(index)
     | Is(index, value)
     | Lt(index, value)
     | Lte(index, value)

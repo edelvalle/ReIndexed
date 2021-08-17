@@ -17,8 +17,8 @@ let catch = (promise, function) => Js.Promise.catch(function, promise)
 let resolve = Js.Promise.resolve
 
 module VesselDef = {
-  type t = {id: string, name: string, age: int}
-  type index = [#id | #name | #age]
+  type t = {id: string, name: string, age: int, flag: option<string>}
+  type index = [#id | #name | #age | #flag]
 }
 module Vessel = MakeModel(VesselDef)
 
@@ -37,6 +37,7 @@ module Database = MakeDatabase({
         let store = db->Database.createObjectStore("vessels")
         store->Store.createIndex("name", "name")
         store->Store.createIndex("age", "age")
+        store->Store.createIndex("flag", "flag")
       },
       (db, _transaction): unit => {
         db->Utils.createStandardStore("staff", ["name", "age", "position"])->ignore
@@ -59,11 +60,11 @@ module Query = Database.MakeQuery(QueryDef)
 Database.connect("test_database")
 ->then(_db => {
   let vessels: array<Vessel.t> = [
-    {id: "a", name: "MS Anag", age: 10},
-    {id: "b", name: "MS Anag", age: 15},
-    {id: "c", name: "MS Fresco", age: 5},
-    {id: "d", name: "Mc Donald", age: 20},
-    {id: "x", name: "Mc Donald", age: 15},
+    {id: "a", name: "MS Anag", age: 10, flag: None},
+    {id: "b", name: "MS Anag", age: 15, flag: Some("de")},
+    {id: "c", name: "MS Fresco", age: 5, flag: Some("au")},
+    {id: "d", name: "Mc Donald", age: 20, flag: None},
+    {id: "x", name: "Mc Donald", age: 15, flag: Some("de")},
   ]
 
   open QUnit
@@ -152,7 +153,7 @@ Database.connect("test_database")
         x->equal(results.vessels->Array.length, 1, "There should be just 1 vessels")
         x->deepEqual(
           results.vessels->Array.get(0),
-          Some({id: "a", name: "MS Anag", age: 10}),
+          Some({id: "a", name: "MS Anag", age: 10, flag: None}),
           "The vessel retrieved should have id 'a'",
         )
         done()
@@ -164,7 +165,12 @@ Database.connect("test_database")
     test("Can add a new vessel", x => {
       let done = x->async
       [
-        Write(_ => {...Query.makeWrite(), vessels: [Save({id: "new", name: "MS New", age: 30})]}),
+        Write(
+          _ => {
+            ...Query.makeWrite(),
+            vessels: [Save({id: "new", name: "MS New", age: 30, flag: None})],
+          },
+        ),
         Read(_ => {...Query.makeRead(), vessels: All}),
       ]
       ->Query.do
@@ -172,7 +178,7 @@ Database.connect("test_database")
         x->equal(results.vessels->Array.length, 6, "There should be just 6 vessels")
         x->deepEqual(
           results.vessels->Array.keep(vessel => vessel.id == "new"),
-          [{id: "new", name: "MS New", age: 30}],
+          [{id: "new", name: "MS New", age: 30, flag: None}],
           "The new vessel can be retrieved",
         )
         done()
@@ -234,6 +240,10 @@ Database.connect("test_database")
     })
 
     module_("Test term on an index", _ => {
+      test("Can read not null flags", x => {
+        x->checkResultantKeys(NotNull(#flag), ["b", "c", "x"])
+      })
+
       test("Can get pricese primary key", x => {
         x->checkResultantKeys(Is(#age, Query.value(15)), ["b", "x"])
       })
@@ -372,11 +382,11 @@ Database.connect("test_database")
         ->checkRemainingItems(
           x,
           [
-            {id: "a", name: "MS Anag", age: 10},
-            {id: "b", name: "MS Anag", age: 15},
-            {id: "c", name: "MS Fresco", age: 5},
-            {id: "d", name: "Mc Donald", age: 20},
-            {id: "x", name: "Mc Donald", age: 15},
+            {id: "a", name: "MS Anag", age: 10, flag: None},
+            {id: "b", name: "MS Anag", age: 15, flag: Some("de")},
+            {id: "c", name: "MS Fresco", age: 5, flag: Some("au")},
+            {id: "d", name: "Mc Donald", age: 20, flag: None},
+            {id: "x", name: "Mc Donald", age: 15, flag: Some("de")},
           ],
         )
       })
@@ -395,11 +405,11 @@ Database.connect("test_database")
         ->checkRemainingItems(
           x,
           [
-            {id: "a", name: "MS Anag", age: 0},
-            {id: "b", name: "MS Anag", age: 0},
-            {id: "c", name: "MS Fresco", age: 5},
-            {id: "d", name: "Mc Donald", age: 20},
-            {id: "x", name: "Mc Donald", age: 15},
+            {id: "a", name: "MS Anag", age: 0, flag: None},
+            {id: "b", name: "MS Anag", age: 0, flag: Some("de")},
+            {id: "c", name: "MS Fresco", age: 5, flag: Some("au")},
+            {id: "d", name: "Mc Donald", age: 20, flag: None},
+            {id: "x", name: "Mc Donald", age: 15, flag: Some("de")},
           ],
         )
       })
@@ -418,9 +428,9 @@ Database.connect("test_database")
         ->checkRemainingItems(
           x,
           [
-            {id: "a", name: "MS Anag", age: 10},
-            {id: "c", name: "MS Fresco", age: 5},
-            {id: "d", name: "Mc Donald", age: 20},
+            {id: "a", name: "MS Anag", age: 10, flag: None},
+            {id: "c", name: "MS Fresco", age: 5, flag: Some("au")},
+            {id: "d", name: "Mc Donald", age: 20, flag: None},
           ],
         )
       })
@@ -428,13 +438,15 @@ Database.connect("test_database")
   })
 
   module_("Performance test", _ => {
-    test("Bulk insert of 10.000 items", x => {
-      let names = ["MS Angst", "MS Angust", "Cachimba", "Record MSX", "VAX", "UNIVAC"]
+    let names = ["MS Angst", "MS Angust", "Cachimba", "Record MSX", "VAX", "UNIVAC"]
+    let flags = [None, Some("de"), Some("cu"), Some("ch"), Some("au"), Some("tk")]
 
+    test("Bulk insert of 10.000 items", x => {
       let vessels = Array.makeBy(10000, (_): Vessel.t => {
         id: uuid4(),
         name: chooseFrom(names),
         age: Js.Math.random_int(0, 100),
+        flag: chooseFrom(flags),
       })
       let done = x->asyncMany(3)
       let start = Js.Date.now()->Int.fromFloat
@@ -469,12 +481,11 @@ Database.connect("test_database")
     })
 
     test("Bulk insert of 10.000 using chaining", x => {
-      let names = ["MS Angst", "MS Angust", "Cachimba", "Record MSX", "VAX", "UNIVAC"]
-
       let vessels = Array.makeBy(10000, (_): Vessel.t => {
         id: uuid4(),
         name: chooseFrom(names),
         age: Js.Math.random_int(0, 100),
+        flag: chooseFrom(flags),
       })
       let done = x->async
       [

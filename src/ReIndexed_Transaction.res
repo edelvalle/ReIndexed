@@ -11,6 +11,7 @@ type rec read<'a> =
   | NoOp
   | All
   | Get(value)
+  | NotNull(index)
   | Is(index, value)
   | Lt(index, value)
   | Lte(index, value)
@@ -49,6 +50,7 @@ let _openCursor = (store, attribute, range) => {
 let _simpleQuery = (store, term, gather) => {
   let (attribute, range) = switch term {
   | All => (None, None)
+  | NotNull(attribute) => (Some(attribute), None)
   | Is(attribute, value) => (Some(attribute), Some(KeyRange.only(value)))
   | Lt(attribute, value) => (Some(attribute), Some(KeyRange.upperBound(value, true)))
   | Lte(attribute, value) => (Some(attribute), Some(KeyRange.upperBound(value, false)))
@@ -132,7 +134,14 @@ let rec _query = (store: Store.t, expression: read<'a>, callback: array<'a> => u
         }
       })
     }
-  | All | Is(_, _) | Lt(_, _) | Lte(_, _) | Gt(_, _) | Gte(_, _) | Between(_, _, _) => {
+  | All
+  | NotNull(_)
+  | Is(_, _)
+  | Lt(_, _)
+  | Lte(_, _)
+  | Gt(_, _)
+  | Gte(_, _)
+  | Between(_, _, _) => {
       let results = []
       let gather = item => {
         switch item {
