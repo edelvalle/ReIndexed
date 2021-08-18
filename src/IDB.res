@@ -51,6 +51,9 @@ module Migration = {
     @send external deleteIndex: (t, string) => unit = "deleteIndex"
 
     @send external createIndex: (t, string, string) => unit = "createIndex"
+
+    let createSimpleIndex = (store, name) => store->createIndex(name, name)
+
     let createUniqueIndex: (t, string, array<string>) => unit = %raw(`
       function (store, name, attrPath) {
         store.createIndex(name, attrPath, {unique: true});
@@ -84,9 +87,9 @@ module Migration = {
 
   /// Utilities to "standard" migrations
   module Utils = {
-    /// Calls `createIndex(a, a)` for each item in the array.
+    /// Calls `createSimpleIndex(a)` for each item in the array.
     let createManyIndexes = (obj: Store.t, indexes: array<string>): Store.t => {
-      indexes->Js.Array2.forEach(a => obj->Store.createIndex(a, a))
+      indexes->Js.Array2.forEach(a => obj->Store.createSimpleIndex(a))
       obj
     }
 
