@@ -27,6 +27,7 @@ module MakeModel = (Model: ModelT) => {
     | Gte(index, value)
     | Between(index, bound, bound)
     | AnyOf(index, array<value>)
+    | In(array<value>)
     | Filter(read, t => bool)
     | And(read, read)
     | Or(read, read)

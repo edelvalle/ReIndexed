@@ -206,6 +206,10 @@ Database.connect("test_database")
         x->checkResultantKeys(Is(#id, "c"), ["c"])
       })
 
+      test("Can get many vessels with In", x => {
+        x->checkResultantKeys(In(["a", "c", "this-doesnt-exists"]), ["a", "c"])
+      })
+
       test("Can get less than primary key", x => {
         x->checkResultantKeys(Lt(#id, "c"), ["a", "b"])
       })

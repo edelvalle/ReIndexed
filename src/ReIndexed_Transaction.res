@@ -19,6 +19,7 @@ type rec read<'a> =
   | Gte(index, value)
   | Between(index, bound, bound)
   | AnyOf(index, array<value>)
+  | In(array<value>)
   | Filter(read<'a>, 'a => bool)
   | And(read<'a>, read<'a>)
   | Or(read<'a>, read<'a>)
@@ -151,6 +152,7 @@ let rec _query = (store: Store.t, expression: read<'a>, callback: array<'a> => u
       }
       _simpleQuery(store, expression, gather)
     }
+  | In(ids) => _query(store, AnyOf("id", ids), callback)
   | AnyOf(index, values) => {
       let results = []
       let gather = item => {
