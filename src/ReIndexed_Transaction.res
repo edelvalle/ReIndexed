@@ -236,45 +236,40 @@ let _simplifyWriteRequest = writeRequest =>
   )
   ->Js.Dict.fromArray
 
-let _read = (transaction, readRequest, response) => {
-  Js.Promise.make((~resolve, ~reject) => {
-    reject->ignore
+let _read = (transaction, readRequest, response, callback) => {
+  let toResolve = readRequest->Js.Dict.keys->Array.length
+  let solved = ref(0)
 
-    let toResolve = readRequest->Js.Dict.keys->Array.length
-    let solved = ref(0)
-
-    readRequest
-    ->Js.Dict.entries
-    ->Array.forEach(((storeName, expression)) => {
-      let store = transaction->Transaction.objectStore(storeName)
-      _query(store, expression, results => {
-        response->Js.Dict.unsafeGet(store->Store.name)->Js.Array2.pushMany(results)->ignore
-        solved := solved.contents + 1
-        if solved.contents == toResolve {
-          resolve(. response)
-        }
-      })
+  readRequest
+  ->Js.Dict.entries
+  ->Array.forEach(((storeName, expression)) => {
+    let store = transaction->Transaction.objectStore(storeName)
+    _query(store, expression, results => {
+      response->Js.Dict.unsafeGet(store->Store.name)->Js.Array2.pushMany(results)->ignore
+      solved := solved.contents + 1
+      if solved.contents == toResolve {
+        callback(response)
+      }
     })
   })
+  response
 }
 
-let _write = (transaction, writeRequest, response) => {
-  Js.Promise.make((~resolve, ~reject) => {
-    reject->ignore
-    writeRequest
-    ->Js.Dict.entries
-    ->Array.forEach(((storeName, commands)) => {
-      let store = transaction->Transaction.objectStore(storeName)
-      commands->Array.forEach(command => {
-        switch command {
-        | Clear => store->Store.clear->ignore
-        | Save(item) => store->Store.put(item)->ignore
-        | Delete(id) => store->Store.delete(id)->ignore
-        }
-      })
+let _write = (transaction, writeRequest, response, callback) => {
+  writeRequest
+  ->Js.Dict.entries
+  ->Array.forEach(((storeName, commands)) => {
+    let store = transaction->Transaction.objectStore(storeName)
+    commands->Array.forEach(command => {
+      switch command {
+      | Clear => store->Store.clear->ignore
+      | Save(item) => store->Store.put(item)->ignore
+      | Delete(id) => store->Store.delete(id)->ignore
+      }
     })
-    resolve(. response)
   })
+  callback(response)
+  response
 }
 
 let _makeResponse = db => {
@@ -287,7 +282,12 @@ let read = (db: Database.t, readRequest) => {
   switch simplifiedRequest->Js.Dict.keys {
   | [] => Js.Promise.resolve(response)
   | storeNames =>
-    db->Database.transaction(storeNames, #readonly)->_read(simplifiedRequest, response)
+    Js.Promise.make((~resolve, ~reject) => {
+      reject->ignore
+      let transaction = db->Database.transaction(storeNames, #readonly)
+      transaction->_read(simplifiedRequest, response, ignore)->ignore
+      transaction->Transaction.oncomplete(() => resolve(. response))
+    })
   }
 }
 
@@ -297,33 +297,42 @@ let write = (db: Database.t, writeRequest) => {
   switch simplifiedRequest->Js.Dict.keys {
   | [] => Js.Promise.resolve(response)
   | storeNames =>
-    db->Database.transaction(storeNames, #readwrite)->_write(simplifiedRequest, response)
+    Js.Promise.make((~resolve, ~reject) => {
+      reject->ignore
+      let transaction = db->Database.transaction(storeNames, #readwrite)
+      transaction->_write(simplifiedRequest, response, ignore)->ignore
+      transaction->Transaction.oncomplete(() => resolve(. response))
+    })
   }
 }
 
-let rec _executeQueries = (promise, queries, transaction) => {
-  promise->Js.Promise.then_(response => {
-    switch queries {
-    | list{} => Js.Promise.resolve(response)
-    | list{query, ...queries} =>
-      switch query {
-      | Read(q) => {
-          let simplifiedRequest = response->q->_simplifyReadRequest
-          switch simplifiedRequest->Js.Dict.keys {
-          | [] => Js.Promise.resolve(response)
-          | _ => transaction->_read(simplifiedRequest, response)
-          }
+let rec _executeQueries = (response, queries, transaction) => {
+  switch queries {
+  | list{} => response
+  | list{query, ...queries} =>
+    switch query {
+    | Read(q) => {
+        let simplifiedRequest = response->q->_simplifyReadRequest
+        switch simplifiedRequest->Js.Dict.keys {
+        | [] => response
+        | _ =>
+          transaction->_read(simplifiedRequest, response, response =>
+            response->_executeQueries(queries, transaction)->ignore
+          )
         }
-      | Write(q) => {
-          let simplifiedRequest = response->q->_simplifyWriteRequest
-          switch simplifiedRequest->Js.Dict.keys {
-          | [] => Js.Promise.resolve(response)
-          | _ => transaction->_write(simplifiedRequest, response)
-          }
+      }
+    | Write(q) => {
+        let simplifiedRequest = response->q->_simplifyWriteRequest
+        switch simplifiedRequest->Js.Dict.keys {
+        | [] => response
+        | _ =>
+          transaction->_write(simplifiedRequest, response, response =>
+            response->_executeQueries(queries, transaction)->ignore
+          )
         }
-      }->_executeQueries(queries, transaction)
+      }
     }
-  }, _)
+  }
 }
 
 let do = (db: Database.t, queries: array<query<'a, 'b>>) => {
@@ -343,7 +352,7 @@ let do = (db: Database.t, queries: array<query<'a, 'b>>) => {
   Js.Promise.make((~resolve, ~reject) => {
     reject->ignore
     let transaction = db->Database.transaction(db->Database.objectStoreNames, transactionMode)
+    transaction->_executeQueries(response, queries->List.fromArray, _)->ignore
     transaction->Transaction.oncomplete(() => resolve(. response))
-    Js.Promise.resolve(response)->_executeQueries(queries->List.fromArray, transaction)->ignore
   })
 }
